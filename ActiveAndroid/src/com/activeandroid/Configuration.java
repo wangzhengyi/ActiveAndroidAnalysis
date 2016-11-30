@@ -1,21 +1,5 @@
 package com.activeandroid;
 
-/*
- * Copyright (C) 2010 Michael Pardo
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -34,12 +18,40 @@ public class Configuration {
     //////////////////////////////////////////////////////////////////////////////////////
     // PRIVATE MEMBERS
     //////////////////////////////////////////////////////////////////////////////////////
+
+    /**
+     * 应用进程上下文
+     */
     private Context mContext;
+
+    /**
+     * 数据库名称
+     */
     private String mDatabaseName;
+
+    /**
+     * 数据库版本号
+     */
     private int mDatabaseVersion;
+
+    /**
+     * 数据库SQL解释器名称
+     */
     private String mSqlParser;
+
+    /**
+     * Table集合
+     */
     private List<Class<? extends Model>> mModelClasses;
+
+    /**
+     * TODO:暂时不清楚用途
+     */
     private List<Class<? extends TypeSerializer>> mTypeSerializers;
+
+    /**
+     * Cache Size
+     */
     private int mCacheSize;
 
     //////////////////////////////////////////////////////////////////////////////////////
@@ -82,12 +94,16 @@ public class Configuration {
         return mCacheSize;
     }
 
+    /**
+     * 判断当前的Configuration对象是否有效
+     * 有效的依据是：当前表集合是否不为空
+     */
     public boolean isValid() {
         return mModelClasses != null && mModelClasses.size() > 0;
     }
 
     //////////////////////////////////////////////////////////////////////////////////////
-    // INNER CLASSES
+    // INNER CLASSES(构造器模式)
     //////////////////////////////////////////////////////////////////////////////////////
 
     public static class Builder {
@@ -197,6 +213,9 @@ public class Configuration {
             return this;
         }
 
+        /**
+         * 构建Configuration类
+         */
         public Configuration create() {
             Configuration configuration = new Configuration(mContext);
             configuration.mCacheSize = mCacheSize;
@@ -287,6 +306,9 @@ public class Configuration {
             return mode;
         }
 
+        /**
+         * 获取表的Class对象,存入List集合中
+         */
         private List<Class<? extends Model>> loadModelList(String[] models) {
             final List<Class<? extends Model>> modelClasses = new ArrayList<Class<? extends Model>>();
             final ClassLoader classLoader = mContext.getClass().getClassLoader();
@@ -304,6 +326,9 @@ public class Configuration {
             return modelClasses;
         }
 
+        /**
+         * TODO:暂时不清楚用途
+         */
         private List<Class<? extends TypeSerializer>> loadSerializerList(String[] serializers) {
             final List<Class<? extends TypeSerializer>> typeSerializers = new ArrayList<Class<? extends TypeSerializer>>();
             final ClassLoader classLoader = mContext.getClass().getClassLoader();
