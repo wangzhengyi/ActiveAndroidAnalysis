@@ -1,21 +1,5 @@
 package com.activeandroid;
 
-/*
- * Copyright (C) 2010 Michael Pardo
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 import java.lang.reflect.Field;
 import java.util.Collection;
 import java.util.Collections;
@@ -36,10 +20,24 @@ public final class TableInfo {
 	// PRIVATE MEMBERS
 	//////////////////////////////////////////////////////////////////////////////////////
 
+    /**
+     * 当前用户自定义表的Class对象
+     */
 	private Class<? extends Model> mType;
-	private String mTableName;
-	private String mIdName = Table.DEFAULT_ID_NAME;
 
+    /**
+     * 表名
+     */
+	private String mTableName;
+
+    /**
+     * 表主键的名称,默认为"id"
+     */
+    private String mIdName = Table.DEFAULT_ID_NAME;
+
+    /**
+     * 表的每一列和其名称的Map映射
+     */
 	private Map<Field, String> mColumnNames = new LinkedHashMap<Field, String>();
 
 	//////////////////////////////////////////////////////////////////////////////////////
@@ -52,18 +50,22 @@ public final class TableInfo {
 		final Table tableAnnotation = type.getAnnotation(Table.class);
 
         if (tableAnnotation != null) {
+            // 如果有Table注解,则使用Table注解中的表名和主键名
 			mTableName = tableAnnotation.name();
 			mIdName = tableAnnotation.id();
 		}
 		else {
+            // 没有Table注解,使用类名作为表名
 			mTableName = type.getSimpleName();
         }
 
-        // Manually add the id column since it is not declared like the other columns.
+        // 添加主键的Field和name的键值对(因为主键是不能在用户定义的Model类中进行声明的)
         Field idField = getIdField(type);
         mColumnNames.put(idField, mIdName);
 
+        // 获取用户自定义Model中Field集合
         List<Field> fields = new LinkedList<Field>(ReflectionUtils.getDeclaredColumnFields(type));
+        // Fields根据name进行字母升序排序
         Collections.reverse(fields);
 
         for (Field field : fields) {
@@ -104,7 +106,9 @@ public final class TableInfo {
 		return mColumnNames.get(field);
 	}
 
-
+    /**
+     * 获取主键的Field,即mId成员代表的Field.
+     */
     private Field getIdField(Class<?> type) {
         if (type.equals(Model.class)) {
             try {
