@@ -1,21 +1,5 @@
 package com.activeandroid;
 
-/*
- * Copyright (C) 2010 Michael Pardo
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 import java.util.Collection;
 
 import android.content.Context;
@@ -26,129 +10,136 @@ import com.activeandroid.serializer.TypeSerializer;
 import com.activeandroid.util.Log;
 
 public final class Cache {
-	//////////////////////////////////////////////////////////////////////////////////////
-	// PUBLIC CONSTANTS
-	//////////////////////////////////////////////////////////////////////////////////////
+    //////////////////////////////////////////////////////////////////////////////////////
+    // PUBLIC CONSTANTS
+    //////////////////////////////////////////////////////////////////////////////////////
 
-	public static final int DEFAULT_CACHE_SIZE = 1024;
+    public static final int DEFAULT_CACHE_SIZE = 1024;
 
-	//////////////////////////////////////////////////////////////////////////////////////
-	// PRIVATE MEMBERS
-	//////////////////////////////////////////////////////////////////////////////////////
+    //////////////////////////////////////////////////////////////////////////////////////
+    // PRIVATE MEMBERS
+    //////////////////////////////////////////////////////////////////////////////////////
 
-	private static Context sContext;
+    /**
+     * 应用进程上下文.
+     * 一定要使用Application的Context去初始化ActiveAndroid,不然这里static保存会导致内存泄露
+     */
+    private static Context sContext;
 
-	private static ModelInfo sModelInfo;
-	private static DatabaseHelper sDatabaseHelper;
+    private static ModelInfo sModelInfo;
+    private static DatabaseHelper sDatabaseHelper;
 
-	private static LruCache<String, Model> sEntities;
+    private static LruCache<String, Model> sEntities;
 
-	private static boolean sIsInitialized = false;
+    private static boolean sIsInitialized = false;
 
-	//////////////////////////////////////////////////////////////////////////////////////
-	// CONSTRUCTORS
-	//////////////////////////////////////////////////////////////////////////////////////
+    //////////////////////////////////////////////////////////////////////////////////////
+    // CONSTRUCTORS
+    //////////////////////////////////////////////////////////////////////////////////////
 
-	private Cache() {
-	}
+    private Cache() {
+    }
 
-	//////////////////////////////////////////////////////////////////////////////////////
-	// PUBLIC METHODS
-	//////////////////////////////////////////////////////////////////////////////////////
+    //////////////////////////////////////////////////////////////////////////////////////
+    // PUBLIC METHODS
+    //////////////////////////////////////////////////////////////////////////////////////
 
-	public static synchronized void initialize(Configuration configuration) {
-		if (sIsInitialized) {
-			Log.v("ActiveAndroid already initialized.");
-			return;
-		}
+    public static synchronized void initialize(Configuration configuration) {
+        if (sIsInitialized) {
+            Log.v("ActiveAndroid already initialized.");
+            return;
+        }
 
-		sContext = configuration.getContext();
-		sModelInfo = new ModelInfo(configuration);
-		sDatabaseHelper = new DatabaseHelper(configuration);
+        sContext = configuration.getContext();
+        sModelInfo = new ModelInfo(configuration);
+        sDatabaseHelper = new DatabaseHelper(configuration);
 
-		sEntities = new LruCache<String, Model>(configuration.getCacheSize());
+        sEntities = new LruCache<String, Model>(configuration.getCacheSize());
 
-		openDatabase();
+        openDatabase();
 
-		sIsInitialized = true;
+        sIsInitialized = true;
 
-		Log.v("ActiveAndroid initialized successfully.");
-	}
+        Log.v("ActiveAndroid initialized successfully.");
+    }
 
-	public static synchronized void clear() {
-		sEntities.evictAll();
-		Log.v("Cache cleared.");
-	}
+    public static synchronized void clear() {
+        sEntities.evictAll();
+        Log.v("Cache cleared.");
+    }
 
-	public static synchronized void dispose() {
-		closeDatabase();
+    /**
+     * 关闭数据库句柄,清理内存资源
+     */
+    public static synchronized void dispose() {
+        closeDatabase();
 
-		sEntities = null;
-		sModelInfo = null;
-		sDatabaseHelper = null;
+        sEntities = null;
+        sModelInfo = null;
+        sDatabaseHelper = null;
 
-		sIsInitialized = false;
+        sIsInitialized = false;
 
-		Log.v("ActiveAndroid disposed. Call initialize to use library.");
-	}
+        Log.v("ActiveAndroid disposed. Call initialize to use library.");
+    }
 
-	// Database access
-	
-	public static boolean isInitialized() {
-		return sIsInitialized;
-	}
+    // Database access
 
-	public static synchronized SQLiteDatabase openDatabase() {
-		return sDatabaseHelper.getWritableDatabase();
-	}
+    public static boolean isInitialized() {
+        return sIsInitialized;
+    }
 
-	public static synchronized void closeDatabase() {
-		sDatabaseHelper.close();
-	}
+    public static synchronized SQLiteDatabase openDatabase() {
+        return sDatabaseHelper.getWritableDatabase();
+    }
 
-	// Context access
+    public static synchronized void closeDatabase() {
+        sDatabaseHelper.close();
+    }
 
-	public static Context getContext() {
-		return sContext;
-	}
+    // Context access
 
-	// Entity cache
+    public static Context getContext() {
+        return sContext;
+    }
 
-	public static String getIdentifier(Class<? extends Model> type, Long id) {
-		return getTableName(type) + "@" + id;
-	}
+    // Entity cache
 
-	public static String getIdentifier(Model entity) {
-		return getIdentifier(entity.getClass(), entity.getId());
-	}
+    public static String getIdentifier(Class<? extends Model> type, Long id) {
+        return getTableName(type) + "@" + id;
+    }
 
-	public static synchronized void addEntity(Model entity) {
-		sEntities.put(getIdentifier(entity), entity);
-	}
+    public static String getIdentifier(Model entity) {
+        return getIdentifier(entity.getClass(), entity.getId());
+    }
 
-	public static synchronized Model getEntity(Class<? extends Model> type, long id) {
-		return sEntities.get(getIdentifier(type, id));
-	}
+    public static synchronized void addEntity(Model entity) {
+        sEntities.put(getIdentifier(entity), entity);
+    }
 
-	public static synchronized void removeEntity(Model entity) {
-		sEntities.remove(getIdentifier(entity));
-	}
+    public static synchronized Model getEntity(Class<? extends Model> type, long id) {
+        return sEntities.get(getIdentifier(type, id));
+    }
 
-	// Model cache
+    public static synchronized void removeEntity(Model entity) {
+        sEntities.remove(getIdentifier(entity));
+    }
 
-	public static synchronized Collection<TableInfo> getTableInfos() {
-		return sModelInfo.getTableInfos();
-	}
+    // Model cache
 
-	public static synchronized TableInfo getTableInfo(Class<? extends Model> type) {
-		return sModelInfo.getTableInfo(type);
-	}
+    public static synchronized Collection<TableInfo> getTableInfos() {
+        return sModelInfo.getTableInfos();
+    }
 
-	public static synchronized TypeSerializer getParserForType(Class<?> type) {
-		return sModelInfo.getTypeSerializer(type);
-	}
+    public static synchronized TableInfo getTableInfo(Class<? extends Model> type) {
+        return sModelInfo.getTableInfo(type);
+    }
 
-	public static synchronized String getTableName(Class<? extends Model> type) {
-		return sModelInfo.getTableInfo(type).getTableName();
-	}
+    public static synchronized TypeSerializer getParserForType(Class<?> type) {
+        return sModelInfo.getTypeSerializer(type);
+    }
+
+    public static synchronized String getTableName(Class<? extends Model> type) {
+        return sModelInfo.getTableInfo(type).getTableName();
+    }
 }

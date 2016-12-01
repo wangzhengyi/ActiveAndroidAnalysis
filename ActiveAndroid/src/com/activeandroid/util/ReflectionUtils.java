@@ -65,6 +65,7 @@ public final class ReflectionUtils {
 	}
 	
 	public static Set<Field> getDeclaredColumnFields(Class<?> type) {
+		// 使用Set集合,防止出现重复字段
 		Set<Field> declaredColumnFields = Collections.emptySet();
 		
 		if (ReflectionUtils.isSubclassOf(type, Model.class) || Model.class.equals(type)) {
