@@ -1,11 +1,29 @@
-# ActiveAndroid
+# ActiveAndroid源码分析
 
 -------
 # 基本使用
 
-### 声明Table
+## ActiveAndroid集成
+在AndroidStudio中，我们可以通过两种方式集成ActiveAndroid.
 
-类似声明一个Students的表,需要集成Model类,代码如下:
+第一种是使用Gradle配置依赖：
+```gradle
+repositories {
+    mavenCentral()
+    maven { url "https://oss.sonatype.org/content/repositories/snapshots/" }
+}
+
+compile 'com.michaelpardo:activeandroid:3.1.0-SNAPSHOT'
+```
+
+第二种是集成ActiveAndroid的jar包.
+[ActiveAndroid JAR包下载地址](https://github.com/pardom/ActiveAndroid/downloads)
+
+
+## 自定义Model类
+
+ActiveAndroid提供了一个Model类,用户可以继承Model,生成自己的表结构,一个Model就代表了SQLite数据库中的一张表结构.
+这里我声明一个学生表,示例代码如下:
 ```java
 @Table(name = "Student")
 public class StudentDAO extends Model {
@@ -23,9 +41,9 @@ public class StudentDAO extends Model {
 }
 ```
 
-### AndroidManifest.xml中注册相关信息
+## 在AndroidManifest.xml中注册相关信息
 
-使用者需要在AndroidManifest.xml中注册数据库名称、版本号、表的路径等相关信息,参考设置如下：
+为了ActiveAndroid的运行效率,使用者需要在AndroidManifest.xml中注册数据库名称、版本号、表的代码路径等相关信息,参考设置如下：
 ```xml
 <meta-data
     android:name="AA_DB_NAME"
@@ -38,7 +56,7 @@ public class StudentDAO extends Model {
     android:value="com.wzy.study.model.StudentDAO, com.wzy.study.model.ClassDAO"/>
 ```
 
-### 在自定义的Application中进行ActiveAndroid初始化
+## 在Application中进行ActiveAndroid初始化和析构操作
 
 ```java
 public class ExampleApplication extends Application {
@@ -55,8 +73,8 @@ public class ExampleApplication extends Application {
     }
 }
 ```
-
 -------
+
 # 源码分析
 
 ## 初始化过程
