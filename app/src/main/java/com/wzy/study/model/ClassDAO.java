@@ -1,5 +1,6 @@
 package com.wzy.study.model;
 
+import com.activeandroid.Model;
 import com.activeandroid.annotation.Column;
 import com.activeandroid.annotation.Table;
 
@@ -8,7 +9,7 @@ import com.activeandroid.annotation.Table;
  */
 
 @Table(name = "class")
-public class ClassDAO {
+public class ClassDAO extends Model{
     @Column(name = "studentsNum")
     public String studentsNum;
 

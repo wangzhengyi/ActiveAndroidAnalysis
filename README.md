@@ -61,6 +61,8 @@ public class ExampleApplication extends Application {
 
 ## 初始化过程
 
+### ActiveAndroid.java
+
 我们先从ActiveAndroid的初始化过程入手,来分析ActiveAndroid的具体实现机制.
 
 ```java
@@ -619,7 +621,9 @@ openDatabase();
 至此,ActiveAndroid的数据库创建过程就已经分析完成了.
 
 --------
-# 数据库查询
+## 数据库SURD
+
+### Sqlable.java
 
 在ActiveAndroid中,数据库操作的类都被放在query包中,里面的类都继承了Sqlable接口,这个接口里面只有一个函数,它的功能就是将类转化为各种SQL语句：
 ```java
@@ -628,18 +632,815 @@ public interface Sqlable {
 }
 ```
 
-比较特殊的是里面的From类.它包含了最后的数据动作,实际的数据库动作都是发生在这个类里面的两个函数中,最后执行execute时,会将数据库操作类的内容先转换为SQL语句,之后执行数据库操作.
-执行多个操作：
+### 插入数据和更新数据
+
+ActiveAndroid中,插入操作和更新操作都是通过Model类的save方法实现的.这里以插入操作为例,对源码进行讲解.
+
+我们先来看一下ActiveAndroid是如何插入数据的,例如我们插入一条学生数据:
+```java
+public void onInsert(View view) {
+    StudentDAO studentDAO = new StudentDAO();
+    studentDAO.age = sAge ++;
+    studentDAO.name = "name" + (num ++);
+    studentDAO.score = sScore;
+    studentDAO.save();
+}
+```
+
+深入到源码级别,我们来分析一下save的实现机制.
+
+```java
+public final Long save() {
+    // 获取SQLite数据库写权限句柄
+    final SQLiteDatabase db = Cache.openDatabase();
+    final ContentValues values = new ContentValues();
+
+    for (Field field : mTableInfo.getFields()) {
+        final String fieldName = mTableInfo.getColumnName(field);
+        Class<?> fieldType = field.getType();
+
+        field.setAccessible(true);
+
+        try {
+            // 通过反射获取每一列的值
+            Object value = field.get(this);
+
+            if (value != null) {
+                final TypeSerializer typeSerializer = Cache.getParserForType(fieldType);
+                if (typeSerializer != null) {
+                    // serialize data
+                    value = typeSerializer.serialize(value);
+                    // set new object type
+                    if (value != null) {
+                        fieldType = value.getClass();
+                        // check that the serializer returned what it promised
+                        if (!fieldType.equals(typeSerializer.getSerializedType())) {
+                            Log.w(String.format("TypeSerializer returned wrong type: expected a %s but got a %s",
+                                    typeSerializer.getSerializedType(), fieldType));
+                        }
+                    }
+                }
+            }
+
+            // 根据File的type将Object value转成相应类型的值,存放在ContentValues中
+            if (value == null) {
+                values.putNull(fieldName);
+            } else if (fieldType.equals(Byte.class) || fieldType.equals(byte.class)) {
+                values.put(fieldName, (Byte) value);
+            } else if (fieldType.equals(Short.class) || fieldType.equals(short.class)) {
+                values.put(fieldName, (Short) value);
+            } else if (fieldType.equals(Integer.class) || fieldType.equals(int.class)) {
+                values.put(fieldName, (Integer) value);
+            } else if (fieldType.equals(Long.class) || fieldType.equals(long.class)) {
+                values.put(fieldName, (Long) value);
+            } else if (fieldType.equals(Float.class) || fieldType.equals(float.class)) {
+                values.put(fieldName, (Float) value);
+            } else if (fieldType.equals(Double.class) || fieldType.equals(double.class)) {
+                values.put(fieldName, (Double) value);
+            } else if (fieldType.equals(Boolean.class) || fieldType.equals(boolean.class)) {
+                values.put(fieldName, (Boolean) value);
+            } else if (fieldType.equals(Character.class) || fieldType.equals(char.class)) {
+                values.put(fieldName, value.toString());
+            } else if (fieldType.equals(String.class)) {
+                values.put(fieldName, value.toString());
+            } else if (fieldType.equals(Byte[].class) || fieldType.equals(byte[].class)) {
+                values.put(fieldName, (byte[]) value);
+            } else if (ReflectionUtils.isModel(fieldType)) {
+                values.put(fieldName, ((Model) value).getId());
+            } else if (ReflectionUtils.isSubclassOf(fieldType, Enum.class)) {
+                values.put(fieldName, ((Enum<?>) value).name());
+            }
+        } catch (IllegalArgumentException e) {
+            Log.e(e.getClass().getName(), e);
+        } catch (IllegalAccessException e) {
+            Log.e(e.getClass().getName(), e);
+        }
+    }
+
+
+    if (mId == null) {
+        // 当前用户Id为null,则进行插入操作
+        mId = db.insert(mTableInfo.getTableName(), null, values);
+    } else {
+        // 当前用户Id不为null,则进入更新操作
+        db.update(mTableInfo.getTableName(), values, idName + "=" + mId, null);
+    }
+
+    // 通知ContentProvider
+    Cache.getContext().getContentResolver()
+            .notifyChange(ContentProvider.createUri(mTableInfo.getType(), mId), null);
+    return mId;
+}
+```
+
+从源码来看,实现还是很简单的.首先,通过反射机制,构造ContentValues.然后通过Model的mId是否为null,来判断是执行db.insert操作还是db.update操作.
+
+### 删除数据
+
+了解了插入和更新操作,我们继续来看一下删除操作的实现.
+
+ActiveAndroid中,可以通过两种方法进行删除操作.
+
+第一种是调用Model.delete方法,这种调用比较简单,我们直接上源码：
+```java
+public final void delete() {
+    Cache.openDatabase().delete(mTableInfo.getTableName(), idName + "=?", new String[]{getId().toString()});
+    Cache.removeEntity(this);
+
+    Cache.getContext().getContentResolver()
+            .notifyChange(ContentProvider.createUri(mTableInfo.getType(), mId), null);
+}
+```
+从代码看,就是直接调用了db.delete方法,删除的条件是依赖于主键的值.
+
+第二种是使用Delete对象,我们先看一下示例代码：
+```java
+public void onDelete(View view) {
+    new Delete().from(StudentDAO.class).where("age = ?", new String[] {"1"}).execute();
+}
+```
+
+从代码里也能隐约看出SQL拼接的影子,我们从源码来跟踪一下其具体实现.
+
+注意：不要Delete配合executeSingle使用,有两个坑需要注意：
+1. SQLite默认不支持DELETE和LIMIT并存的操作.
+2. 使用Delete和executeSingle配合,其实是先执行SELETE操作,然后再执行Model的delte操作.但是ActiveAndroid源码中没有判空,会导致空指针.我已经提交PR解决该问题：https://github.com/pardom/ActiveAndroid/pull/510
+
+#### Delete.java
+
+我们先看一下Delete.java的源码实现：
+```java
+public final class Delete implements Sqlable {
+	public Delete() {
+	}
+
+	public From from(Class<? extends Model> table) {
+		return new From(table, this);
+	}
+
+	@Override
+	public String toSql() {
+		return "DELETE ";
+	}
+}
+```
+继承自Sqlable,重写了toSql()方法,返回的是"DELETE ".
+
+继续看一下From类的实现.
+
+#### From.java
+
+From的注释源码如下：
+```java
+public final class From implements Sqlable {
+    /**
+     * SQL执行语句集合
+     */
+    private Sqlable mQueryBase;
+
+    /**
+     * 用户自定义Model的Class对象
+     */
+    private Class<? extends Model> mType;
+
+    /**
+     * 当前表的别名
+     */
+    private String mAlias;
+
+    /**
+     * 表级联的集合
+     */
+    private List<Join> mJoins;
+
+    /**
+     * WHERE从句
+     */
+    private final StringBuilder mWhere = new StringBuilder();
+
+    /**
+     * GROUP BY从句
+     */
+    private String mGroupBy;
+
+    /**
+     * HAVING从句
+     */
+    private String mHaving;
+
+    /**
+     * ORDER BY从句
+     */
+    private String mOrderBy;
+
+    /**
+     * LIMIT从句
+     */
+    private String mLimit;
+
+    /**
+     * LIMIT的偏移量
+     */
+    private String mOffset;
+
+    /**
+     * WHERE从句占位符参数集合
+     */
+    private List<Object> mArguments;
+
+    /**
+     * 构造函数
+     */
+    public From(Class<? extends Model> table, Sqlable queryBase) {
+        mType = table;
+        mJoins = new ArrayList<Join>();
+        mQueryBase = queryBase;
+
+        mJoins = new ArrayList<Join>();
+        mArguments = new ArrayList<Object>();
+    }
+
+    /**
+     * 设置表别名.
+     * 例如: From(AAA.class).as("a")
+     */
+    public From as(String alias) {
+        mAlias = alias;
+        return this;
+    }
+
+    /**
+     * 两表连接操作
+     * 例如: From(AAA.class).join(BBB.class)
+     */
+    public Join join(Class<? extends Model> table) {
+        Join join = new Join(this, table, null);
+        mJoins.add(join);
+        return join;
+    }
+
+    /**
+     * 左连接
+     */
+    public Join leftJoin(Class<? extends Model> table) {
+        Join join = new Join(this, table, JoinType.LEFT);
+        mJoins.add(join);
+        return join;
+    }
+
+    /**
+     * 外连接
+     */
+    public Join outerJoin(Class<? extends Model> table) {
+        Join join = new Join(this, table, JoinType.OUTER);
+        mJoins.add(join);
+        return join;
+    }
+
+    /**
+     * 内连接
+     */
+    public Join innerJoin(Class<? extends Model> table) {
+        Join join = new Join(this, table, JoinType.INNER);
+        mJoins.add(join);
+        return join;
+    }
+
+    /**
+     * 交叉连接
+     */
+    public Join crossJoin(Class<? extends Model> table) {
+        Join join = new Join(this, table, JoinType.CROSS);
+        mJoins.add(join);
+        return join;
+    }
+
+    /**
+     * Where从句
+     */
+    public From where(String clause) {
+        // Chain conditions if a previous condition exists.
+        if (mWhere.length() > 0) {
+            mWhere.append(" AND ");
+        }
+        mWhere.append(clause);
+        return this;
+    }
+
+    /**
+     * 带占位符的WHERE从句
+     */
+    public From where(String clause, Object... args) {
+        where(clause).addArguments(args);
+        return this;
+    }
+
+    /**
+     * WHERE从句中的AND连接
+     */
+    public From and(String clause) {
+        return where(clause);
+    }
+
+    /**
+     * 带占位符的AND连接
+     */
+    public From and(String clause, Object... args) {
+        return where(clause, args);
+    }
+
+    /**
+     * WHERE从句中的OR连接
+     */
+    public From or(String clause) {
+        if (mWhere.length() > 0) {
+            mWhere.append(" OR ");
+        }
+        mWhere.append(clause);
+        return this;
+    }
+
+    /**
+     * 带占位符的OR连接
+     */
+    public From or(String clause, Object... args) {
+        or(clause).addArguments(args);
+        return this;
+    }
+
+    /**
+     * GROUP BY从句
+     */
+    public From groupBy(String groupBy) {
+        mGroupBy = groupBy;
+        return this;
+    }
+
+    /**
+     * HAVING从句
+     */
+    public From having(String having) {
+        mHaving = having;
+        return this;
+    }
+
+    /**
+     * ORDER BY从句
+     */
+    public From orderBy(String orderBy) {
+        mOrderBy = orderBy;
+        return this;
+    }
+
+    public From limit(int limit) {
+        return limit(String.valueOf(limit));
+    }
+
+    public From limit(String limit) {
+        mLimit = limit;
+        return this;
+    }
+
+    public From offset(int offset) {
+        return offset(String.valueOf(offset));
+    }
+
+    public From offset(String offset) {
+        mOffset = offset;
+        return this;
+    }
+
+    void addArguments(Object[] args) {
+        for (Object arg : args) {
+            if (arg.getClass() == boolean.class || arg.getClass() == Boolean.class) {
+                arg = (arg.equals(true) ? 1 : 0);
+            }
+            mArguments.add(arg);
+        }
+    }
+
+    /**
+     * 拼接FROM语句
+     */
+    private void addFrom(final StringBuilder sql) {
+        sql.append("FROM ");
+        sql.append(Cache.getTableName(mType)).append(" ");
+
+        if (mAlias != null) {
+            sql.append("AS ");
+            sql.append(mAlias);
+            sql.append(" ");
+        }
+    }
+
+    /**
+     * 拼接JOIN语句
+     */
+    private void addJoins(final StringBuilder sql) {
+        for (final Join join : mJoins) {
+            sql.append(join.toSql());
+        }
+    }
+
+    /**
+     * 拼接WHERE语句
+     */
+    private void addWhere(final StringBuilder sql) {
+        if (mWhere.length() > 0) {
+            sql.append("WHERE ");
+            sql.append(mWhere);
+            sql.append(" ");
+        }
+    }
+
+    /**
+     * 拼接GROUP BY语句
+     */
+    private void addGroupBy(final StringBuilder sql) {
+        if (mGroupBy != null) {
+            sql.append("GROUP BY ");
+            sql.append(mGroupBy);
+            sql.append(" ");
+        }
+    }
+
+    /**
+     * 拼接HAVING语句
+     */
+    private void addHaving(final StringBuilder sql) {
+        if (mHaving != null) {
+            sql.append("HAVING ");
+            sql.append(mHaving);
+            sql.append(" ");
+        }
+    }
+
+    /**
+     * 拼接ORDER BY语句
+     */
+    private void addOrderBy(final StringBuilder sql) {
+        if (mOrderBy != null) {
+            sql.append("ORDER BY ");
+            sql.append(mOrderBy);
+            sql.append(" ");
+        }
+    }
+
+    /**
+     * 拼接LIMIT语句
+     */
+    private void addLimit(final StringBuilder sql) {
+        if (mLimit != null) {
+            sql.append("LIMIT ");
+            sql.append(mLimit);
+            sql.append(" ");
+        }
+    }
+
+    /**
+     * 拼接OFFSET语句
+     */
+    private void addOffset(final StringBuilder sql) {
+        if (mOffset != null) {
+            sql.append("OFFSET ");
+            sql.append(mOffset);
+            sql.append(" ");
+        }
+    }
+
+    private String sqlString(final StringBuilder sql) {
+
+        final String sqlString = sql.toString().trim();
+
+        // Don't waste time building the string
+        // unless we're going to log it.
+        if (Log.isEnabled()) {
+            Log.v(sqlString + " " + TextUtils.join(",", getArguments()));
+        }
+
+        return sqlString;
+    }
+
+    /**
+     * 生成可执行的SQL语句
+     */
+    @Override
+    public String toSql() {
+        final StringBuilder sql = new StringBuilder();
+        sql.append(mQueryBase.toSql());
+
+        addFrom(sql);
+        addJoins(sql);
+        addWhere(sql);
+        addGroupBy(sql);
+        addHaving(sql);
+        addOrderBy(sql);
+        addLimit(sql);
+        addOffset(sql);
+
+        return sqlString(sql);
+    }
+
+    public String toExistsSql() {
+
+        final StringBuilder sql = new StringBuilder();
+        sql.append("SELECT EXISTS(SELECT 1 ");
+
+        addFrom(sql);
+        addJoins(sql);
+        addWhere(sql);
+        addGroupBy(sql);
+        addHaving(sql);
+        addLimit(sql);
+        addOffset(sql);
+
+        sql.append(")");
+
+        return sqlString(sql);
+    }
+
+    public String toCountSql() {
+
+        final StringBuilder sql = new StringBuilder();
+        sql.append("SELECT COUNT(*) ");
+
+        addFrom(sql);
+        addJoins(sql);
+        addWhere(sql);
+        addGroupBy(sql);
+        addHaving(sql);
+        addLimit(sql);
+        addOffset(sql);
+
+        return sqlString(sql);
+    }
+
+    /**
+     * 执行SQL语句
+     */
+    public <T extends Model> List<T> execute() {
+        if (mQueryBase instanceof Select) {
+            return SQLiteUtils.rawQuery(mType, toSql(), getArguments());
+
+        } else {
+            SQLiteUtils.execSql(toSql(), getArguments());
+            Cache.getContext().getContentResolver().notifyChange(ContentProvider.createUri(mType, null), null);
+            return null;
+
+        }
+    }
+
+    public <T extends Model> T executeSingle() {
+        if (mQueryBase instanceof Select) {
+            limit(1);
+            return (T) SQLiteUtils.rawQuerySingle(mType, toSql(), getArguments());
+
+        } else {
+            //limit(1);
+            Model model = SQLiteUtils.rawQuerySingle(mType, toSql(), getArguments());
+            if (model != null) {
+                model.delete();
+            }
+            return null;
+
+        }
+    }
+
+    /**
+     * Gets a value indicating whether the query returns any rows.
+     *
+     * @return <code>true</code> if the query returns at least one row; otherwise, <code>false</code>.
+     */
+    public boolean exists() {
+        return SQLiteUtils.intQuery(toExistsSql(), getArguments()) != 0;
+    }
+
+    /**
+     * Gets the number of rows returned by the query.
+     */
+    public int count() {
+        return SQLiteUtils.intQuery(toCountSql(), getArguments());
+    }
+
+    public String[] getArguments() {
+        final int size = mArguments.size();
+        final String[] args = new String[size];
+
+        for (int i = 0; i < size; i++) {
+            args[i] = mArguments.get(i).toString();
+        }
+
+        return args;
+    }
+}
+```
+From类其实是对SQL语句的拼接具体实现,那SQL语句的具体执行其实是通过SQLiteUtils来执行的.
+
+#### SQLiteUtils.java
+
+在SQLiteUtils.java中,执行SQL语句的方法非常简单：
+```java
+public static void execSql(String sql) {
+    Cache.openDatabase().execSQL(sql);
+}
+
+public static void execSql(String sql, Object[] bindArgs) {
+    Cache.openDatabase().execSQL(sql, bindArgs);
+}
+```
+从源码看,其实就是调用了SQLiteDatabase的execSQL方法.
+
+
+### 查找数据
+
+查找数据的过程其实和删除数据的过程很类似,都是通过From类去拼接SQL,最后通过SQLiteUtils去执行.
+我们首先看一下ActiveAndroid中如何查询数据：
+```java
+public void onSelect(View view) {
+    List<StudentDAO> list = new Select().from(StudentDAO.class).execute();
+    for (StudentDAO dao : list) {
+        Log.e("wangzhengyi", dao.toString());
+    }
+}
+```
+
+#### Select.java
+
+```java
+public final class Select implements Sqlable {
+    private String[] mColumns;
+    private boolean mDistinct = false;
+    private boolean mAll = false;
+
+    public Select() {
+    }
+
+    /**
+     * 指定选择的列
+     */
+    public Select(String... columns) {
+        mColumns = columns;
+    }
+
+    /**
+     * 指定选择的列和列的别名
+     */
+    public Select(Column... columns) {
+        final int size = columns.length;
+        mColumns = new String[size];
+        for (int i = 0; i < size; i++) {
+            mColumns[i] = columns[i].name + " AS " + columns[i].alias;
+        }
+    }
+
+    public Select distinct() {
+        mDistinct = true;
+        mAll = false;
+
+        return this;
+    }
+
+    public Select all() {
+        mDistinct = false;
+        mAll = true;
+
+        return this;
+    }
+
+    public From from(Class<? extends Model> table) {
+        return new From(table, this);
+    }
+
+    /**
+     * 静态内部类,用于描述选择的列和列的别名
+     */
+    public static class Column {
+        String name;
+        String alias;
+
+        public Column(String name, String alias) {
+            this.name = name;
+            this.alias = alias;
+        }
+    }
+
+    @Override
+    public String toSql() {
+        StringBuilder sql = new StringBuilder();
+
+        sql.append("SELECT ");
+
+        if (mDistinct) {
+            sql.append("DISTINCT ");
+        } else if (mAll) {
+            sql.append("ALL ");
+        }
+
+        // 如果指定列,则拼接具体的列的名字;否则,使用SELETE *
+        if (mColumns != null && mColumns.length > 0) {
+            sql.append(TextUtils.join(", ", mColumns) + " ");
+        } else {
+            sql.append("* ");
+        }
+
+        return sql.toString();
+    }
+}
+```
+
+可以看到,在Selete类中,我们可以指定需要查找的列,并声明是否为DISTINCT.
+
+#### SQLiteUtils.java
+
+接下来,直接讲解一下SELETE的具体实现.
+首先,分析一下From类中SELETE真正执行的代码:
 ```java
 public <T extends Model> List<T> execute() {
     if (mQueryBase instanceof Select) {
         return SQLiteUtils.rawQuery(mType, toSql(), getArguments());
-        
+
     } else {
         SQLiteUtils.execSql(toSql(), getArguments());
         Cache.getContext().getContentResolver().notifyChange(ContentProvider.createUri(mType, null), null);
         return null;
-        
+
+    }
+}
+
+public <T extends Model> T executeSingle() {
+    if (mQueryBase instanceof Select) {
+        limit(1);
+        return (T) SQLiteUtils.rawQuerySingle(mType, toSql(), getArguments());
+
+    } else {
+        //limit(1);
+        Model model = SQLiteUtils.rawQuerySingle(mType, toSql(), getArguments());
+        if (model != null) {
+            model.delete();
+        }
+        return null;
+
     }
 }
 ```
+从源码中可以看出,SELETE的执行其实最终对应着SQLiteUtils的rawQuery和rawQuerySingle这两个方法.
+
+rawQuery的源码如下:
+```java
+public static <T extends Model> List<T> rawQuery(Class<? extends Model> type, String sql, String[] selectionArgs) {
+    Cursor cursor = Cache.openDatabase().rawQuery(sql, selectionArgs);
+    List<T> entities = processCursor(type, cursor);
+    cursor.close();
+
+    return entities;
+}
+```
+从源码中,可以看到,获取cursor的过程都是通过SQLiteDatabase的rawQuery方法,处理Cursor的方法如下：
+```java
+@SuppressWarnings("unchecked")
+public static <T extends Model> List<T> processCursor(Class<? extends Model> type, Cursor cursor) {
+    TableInfo tableInfo = Cache.getTableInfo(type);
+    String idName = tableInfo.getIdName();
+    final List<T> entities = new ArrayList<T>();
+
+    try {
+        Constructor<?> entityConstructor = type.getConstructor();
+
+        if (cursor.moveToFirst()) {
+            /**
+             * Obtain the columns ordered to fix issue #106 (https://github.com/pardom/ActiveAndroid/issues/106)
+             * when the cursor have multiple columns with same name obtained from join tables.
+             */
+            List<String> columnsOrdered = new ArrayList<String>(Arrays.asList(cursor.getColumnNames()));
+            do {
+                // 判断LruCache缓存中是否存在Model类.
+                Model entity = Cache.getEntity(type, cursor.getLong(columnsOrdered.indexOf(idName)));
+                if (entity == null) {
+                    entity = (T) entityConstructor.newInstance();
+                }
+
+                // 解析Cursor,填充用户自定义的Model对象的field成员
+                entity.loadFromCursor(cursor);
+                entities.add((T) entity);
+            }
+            while (cursor.moveToNext());
+        }
+
+    } catch (NoSuchMethodException e) {
+        throw new RuntimeException(
+                "Your model " + type.getName() + " does not define a default " +
+                        "constructor. The default constructor is required for " +
+                        "now in ActiveAndroid models, as the process to " +
+                        "populate the ORM model is : " +
+                        "1. instantiate default model " +
+                        "2. populate fields"
+        );
+    } catch (Exception e) {
+        Log.e("Failed to process cursor.", e);
+    }
+
+    return entities;
+}
+```
+
+到此为止,ActiveAndroid的增删改查操作基本介绍完毕了.
