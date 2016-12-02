@@ -31,6 +31,9 @@ public final class Cache {
 
     private static LruCache<String, Model> sEntities;
 
+    /**
+     * ActiveAndroid的是否初始化标识
+     */
     private static boolean sIsInitialized = false;
 
     //////////////////////////////////////////////////////////////////////////////////////
@@ -45,6 +48,7 @@ public final class Cache {
     //////////////////////////////////////////////////////////////////////////////////////
 
     public static synchronized void initialize(Configuration configuration) {
+        // 防止ActiveAndroid多次初始化
         if (sIsInitialized) {
             Log.v("ActiveAndroid already initialized.");
             return;

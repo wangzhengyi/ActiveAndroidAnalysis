@@ -84,33 +84,41 @@ public class ExampleApplication extends Application {
 我们先从ActiveAndroid的初始化过程入手,来分析ActiveAndroid的具体实现机制.
 
 ```java
-public static void initialize(Context context) {
-    initialize(new Configuration.Builder(context).create());
-}
-
-public static void initialize(Configuration configuration) {
-    initialize(configuration, false);
-}
-
+/**
+ * 构造函数
+ * @param context 应用进程上下文
+ * @param loggingEnabled 日志开关
+ */
 public static void initialize(Context context, boolean loggingEnabled) {
     initialize(new Configuration.Builder(context).create(), loggingEnabled);
 }
 
+/**
+ * 构造函数
+ * @param configuration 用户构造的Configuration配置类
+ * @param loggingEnabled 日志开关
+ */
 public static void initialize(Configuration configuration, boolean loggingEnabled) {
-    // Set logging enabled first
+    // 设置日志开关(ps:优秀的开源项目都会控制日志输出)
     setLoggingEnabled(loggingEnabled);
     Cache.initialize(configuration);
 }
 ```
 
-从上述代码中,我们在分析initialize源码之前,需要先看一下new Configuration.Builder(context).create()的具体实现.
+从initialize构造函数来看,我们在分析initialize源码实现之前,需要先看一下```new Configuration.Builder(context).create()```的具体实现.
 
 ### Configuration.java
 
-Configuration是ActiveAndroid的配置类,采用构造者模式创建,我们只需要关注一下Configuration.Builder(context).create()的具体实现即可.
-源码如下：
-
+Configuration是ActiveAndroid的配置类,用来记录用户设置的数据库名称,数据库版本,数据库表等相关信息.
+它采用构造者模式创建,我们只需要关注一下Configuration.Builder(context).create()的具体实现即可.源码如下：
 ```java
+/**
+ * 构建Configuration类.
+ * 构建规则:
+ * 1. 如果用户传入了自定义的Configuration类,且设置了相应配置的值,则直接使用用户的配置.
+ * 2. 如果用户没有传入自定义的Configuration类,则使用用户传入的Context对象获取用户在AndroidManifest.xml中meta-data设置的配置.
+ * 3. 单独针对用户自定义的Model类,如果用户没有传入Configuration类,也没有在AndroidManifest中配置,则ActiveAndroid会扫描应用的DexFile,通过反射查找所有用户自定义的Model对象.
+ */
 public Configuration create() {
     Configuration configuration = new Configuration(mContext);
     configuration.mCacheSize = mCacheSize;
@@ -159,13 +167,24 @@ public Configuration create() {
     return configuration;
 }
 ```
-代码非常简单,就是解析AndroidManifest.xml,就是生成Configuration配置信息类.
+从上述源码可以分析出,Configuration类主要保存数据库名称、数据库版本、SQL解释器名称、TypeSerializers集合.
+了解了Configuration类的构造过程,我们需要继续回到ActiveAndroid类的initialize方法.
+```java
+public static void initialize(Configuration configuration, boolean loggingEnabled) {
+    // 设置日志开关(ps:优秀的开源项目都会控制日志输出)
+    setLoggingEnabled(loggingEnabled);
+    Cache.initialize(configuration);
+}
+```
+其中,setLoggingEnabled是用来设置打印开关的,好的项目都会控制日志输出,这块操作都是大同小异,我们就不去深究了.
+接下来,我们去跟踪一下Cache类,看一下Cache类的initialize做了什么操作.
 
 ### Cache.java
 
-回到initialize函数,省去log开关的设置,我们来看一下Cache.initialize中做了哪些操作.源码如下：
+Cache.initialize()的源码如下：
 ```java
 public static synchronized void initialize(Configuration configuration) {
+    // 确保ActiveAndroid只初始化一次
     if (sIsInitialized) {
         Log.v("ActiveAndroid already initialized.");
         return;

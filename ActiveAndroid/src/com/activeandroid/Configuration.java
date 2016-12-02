@@ -214,7 +214,11 @@ public class Configuration {
         }
 
         /**
-         * 构建Configuration类
+         * 构建Configuration类.
+         * 构建规则:
+         * 1. 如果用户传入了自定义的Configuration类,且设置了相应配置的值,则直接使用用户的配置.
+         * 2. 如果用户没有传入自定义的Configuration类,则使用用户传入的Context对象获取用户在AndroidManifest.xml中meta-data设置的配置.
+         * 3. 单独针对用户自定义的Model类,如果用户没有传入Configuration类,也没有在AndroidManifest中配置,则ActiveAndroid会扫描应用的DexFile,通过反射查找所有用户自定义的Model对象.
          */
         public Configuration create() {
             Configuration configuration = new Configuration(mContext);
