@@ -210,7 +210,7 @@ public static synchronized void initialize(Configuration configuration) {
 ```
 从上述代码中,我们首先需要跟进ModelInfo,看一下数据库表信息是如何获取的.
 
-#### ModelInfo.java
+### ModelInfo.java
 
 中文注解的源码如下：
 ```java

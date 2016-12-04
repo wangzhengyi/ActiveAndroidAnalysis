@@ -1,20 +1,5 @@
 package com.activeandroid;
 
-/*
- * Copyright (C) 2010 Michael Pardo
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
 
 import java.io.File;
 import java.io.IOException;
@@ -40,10 +25,6 @@ import com.activeandroid.util.ReflectionUtils;
 import dalvik.system.DexFile;
 
 final class ModelInfo {
-    //////////////////////////////////////////////////////////////////////////////////////
-    // PRIVATE METHODS
-    //////////////////////////////////////////////////////////////////////////////////////
-
     /**
      * 存储Model和TableInfo的键值对Map
      * TableInfo是通过用户自定义Model解析出来的
@@ -58,15 +39,17 @@ final class ModelInfo {
         }
     };
 
-    //////////////////////////////////////////////////////////////////////////////////////
-    // CONSTRUCTORS
-    //////////////////////////////////////////////////////////////////////////////////////
-
+    /**
+     * ModelInfo的构造函数
+     *
+     * @param configuration ActiveAndroid的配置类
+     */
     public ModelInfo(Configuration configuration) {
         // 首先解析AndroidManifest中对应的Model对象
         if (!loadModelFromMetaData(configuration)) {
             try {
-                // 如果AndroidManifest没声明，则从文件目录中去扫描继承自Model的类
+                // 如果用户在AndroidManifest没声明自定义的Model类，
+                // 则从apk安装目录中去扫描继承自Model的类
                 scanForModel(configuration.getContext());
             } catch (IOException e) {
                 Log.e("Couldn't open source path.", e);
@@ -92,16 +75,13 @@ final class ModelInfo {
         return mTypeSerializers.get(type);
     }
 
-    //////////////////////////////////////////////////////////////////////////////////////
-    // PRIVATE METHODS
-    //////////////////////////////////////////////////////////////////////////////////////
-
     /**
      * 从AndroidManifest.xml的meta-data中构建<Model, TableInfo>映射集合
      *
      * @return true: 构建成功; false:用户没有在AndroidManifest中声明AA_MODELS
      */
     private boolean loadModelFromMetaData(Configuration configuration) {
+        // 判断用户是否在AndroidManifest中声明了自定义的Model类路径
         if (!configuration.isValid()) {
             return false;
         }
@@ -114,6 +94,7 @@ final class ModelInfo {
             }
         }
 
+        // TODO:了解TypeSerializer的作用
         final List<Class<? extends TypeSerializer>> typeSerializers = configuration.getTypeSerializers();
         if (typeSerializers != null) {
             for (Class<? extends TypeSerializer> typeSerializer : typeSerializers) {
@@ -135,6 +116,7 @@ final class ModelInfo {
      * 扫描apk对应的DexFile,获取所有的用户自定义Model类,并生成Model和TableInfo的Map集合
      */
     private void scanForModel(Context context) throws IOException {
+        // 获取应用的PackageName
         String packageName = context.getPackageName();
         // 获取应用的安装路径
         String sourcePath = context.getApplicationInfo().sourceDir;
@@ -145,13 +127,11 @@ final class ModelInfo {
             // 将apk文件转成DexFile
             DexFile dexfile = new DexFile(sourcePath);
             Enumeration<String> entries = dexfile.entries();
-
+            // 获取应用所有的文件路径集合
             while (entries.hasMoreElements()) {
                 paths.add(entries.nextElement());
             }
-        }
-        // Robolectric fallback
-        else {
+        } else {
             ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
             Enumeration<URL> resources = classLoader.getResources("");
 
