@@ -59,10 +59,6 @@ final class ModelInfo {
         Log.i("ModelInfo loaded.");
     }
 
-    //////////////////////////////////////////////////////////////////////////////////////
-    // PUBLIC METHODS
-    //////////////////////////////////////////////////////////////////////////////////////
-
     public Collection<TableInfo> getTableInfos() {
         return mTableInfos.values();
     }
@@ -183,7 +179,6 @@ final class ModelInfo {
             try {
                 Class<?> discoveredClass = Class.forName(className, false, classLoader);
                 if (ReflectionUtils.isModel(discoveredClass)) {
-                    Log.e("wangzhengyi", "className=" + discoveredClass.getSimpleName());
                     @SuppressWarnings("unchecked")
                     Class<? extends Model> modelClass = (Class<? extends Model>) discoveredClass;
                     mTableInfos.put(modelClass, new TableInfo(modelClass));

@@ -215,10 +215,6 @@ public static synchronized void initialize(Configuration configuration) {
 中文注解的源码如下：
 ```java
 final class ModelInfo {
-    //////////////////////////////////////////////////////////////////////////////////////
-    // PRIVATE METHODS
-    //////////////////////////////////////////////////////////////////////////////////////
-
     /**
      * 存储Model和TableInfo的键值对Map
      * TableInfo是通过用户自定义Model解析出来的
@@ -233,15 +229,17 @@ final class ModelInfo {
         }
     };
 
-    //////////////////////////////////////////////////////////////////////////////////////
-    // CONSTRUCTORS
-    //////////////////////////////////////////////////////////////////////////////////////
-
+    /**
+     * ModelInfo的构造函数
+     *
+     * @param configuration ActiveAndroid的配置类
+     */
     public ModelInfo(Configuration configuration) {
         // 首先解析AndroidManifest中对应的Model对象
         if (!loadModelFromMetaData(configuration)) {
             try {
-                // 如果AndroidManifest没声明,则从文件目录中去扫描继承自Model的类
+                // 如果用户在AndroidManifest没声明自定义的Model类，
+                // 则从apk安装目录中去扫描继承自Model的类
                 scanForModel(configuration.getContext());
             } catch (IOException e) {
                 Log.e("Couldn't open source path.", e);
@@ -251,37 +249,18 @@ final class ModelInfo {
         Log.i("ModelInfo loaded.");
     }
 
-    //////////////////////////////////////////////////////////////////////////////////////
-    // PUBLIC METHODS
-    //////////////////////////////////////////////////////////////////////////////////////
-
-    public Collection<TableInfo> getTableInfos() {
-        return mTableInfos.values();
-    }
-
-    public TableInfo getTableInfo(Class<? extends Model> type) {
-        return mTableInfos.get(type);
-    }
-
-    public TypeSerializer getTypeSerializer(Class<?> type) {
-        return mTypeSerializers.get(type);
-    }
-
-    //////////////////////////////////////////////////////////////////////////////////////
-    // PRIVATE METHODS
-    //////////////////////////////////////////////////////////////////////////////////////
-
     /**
      * 从AndroidManifest.xml的meta-data中构建<Model, TableInfo>映射集合
      *
      * @return true: 构建成功; false:用户没有在AndroidManifest中声明AA_MODELS
      */
     private boolean loadModelFromMetaData(Configuration configuration) {
+        // 判断用户是否在AndroidManifest中声明了自定义的Model类路径
         if (!configuration.isValid()) {
             return false;
         }
 
-        // 解析每个Model对象,构造Model和TableInfo的键值对
+        // 解析每个Model对象，构造Model和TableInfo的键值对
         final List<Class<? extends Model>> models = configuration.getModelClasses();
         if (models != null) {
             for (Class<? extends Model> model : models) {
@@ -289,6 +268,7 @@ final class ModelInfo {
             }
         }
 
+        // TODO:了解TypeSerializer的作用
         final List<Class<? extends TypeSerializer>> typeSerializers = configuration.getTypeSerializers();
         if (typeSerializers != null) {
             for (Class<? extends TypeSerializer> typeSerializer : typeSerializers) {
@@ -310,6 +290,7 @@ final class ModelInfo {
      * 扫描apk对应的DexFile,获取所有的用户自定义Model类,并生成Model和TableInfo的Map集合
      */
     private void scanForModel(Context context) throws IOException {
+        // 获取应用的PackageName
         String packageName = context.getPackageName();
         // 获取应用的安装路径
         String sourcePath = context.getApplicationInfo().sourceDir;
@@ -320,13 +301,11 @@ final class ModelInfo {
             // 将apk文件转成DexFile
             DexFile dexfile = new DexFile(sourcePath);
             Enumeration<String> entries = dexfile.entries();
-
+            // 获取应用所有的文件路径集合
             while (entries.hasMoreElements()) {
                 paths.add(entries.nextElement());
             }
-        }
-        // Robolectric fallback
-        else {
+        } else {
             ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
             Enumeration<URL> resources = classLoader.getResources("");
 
@@ -378,7 +357,6 @@ final class ModelInfo {
             try {
                 Class<?> discoveredClass = Class.forName(className, false, classLoader);
                 if (ReflectionUtils.isModel(discoveredClass)) {
-                    Log.e("wangzhengyi", "className=" + discoveredClass.getSimpleName());
                     @SuppressWarnings("unchecked")
                     Class<? extends Model> modelClass = (Class<? extends Model>) discoveredClass;
                     mTableInfos.put(modelClass, new TableInfo(modelClass));
@@ -397,7 +375,73 @@ final class ModelInfo {
     }
 }
 ```
-通过ModelInfo源码,我们可以得知,用户再使用ActiveAndroid时,最好把自己自定义的Model类声明在AndroidManifest中,否则ActiveAndroid就需要根据应用对应的DexFile去扫描应用内部全部的类,找出用户自定义的Model类,这是很耗时的操作.
+通过ModelInfo源码我们可以得知,用户在使用ActiveAndroid时,最好把自己自定义的Model类声明在AndroidManifest中,否则ActiveAndroid就需要根据安装应用对应的DexFile去扫描应用内部全部的类,找出用户自定义的Model类,这是很耗时的操作.
+
+### TableInfo.java
+
+同时在ModelInfo.java的源码中,我们可以看到mTableInfos存储的是Model的Class类类型和TableInfo的键值对.
+因为需要看一下TableInfo是如何利用Model的Class类类型生成的.TableInfo的构造函数源码如下:
+```java
+/**
+ * 构造函数,根据用户自定义的Model类生成TableInfo对象
+ */
+public TableInfo(Class<? extends Model> type) {
+    mType = type;
+
+    final Table tableAnnotation = type.getAnnotation(Table.class);
+
+    if (tableAnnotation != null) {
+        // 如果有Table注解,则使用Table注解中的表名和主键名
+        mTableName = tableAnnotation.name();
+        mIdName = tableAnnotation.id();
+    } else {
+        // 没有Table注解,使用类名作为表名
+        mTableName = type.getSimpleName();
+    }
+
+    // 添加主键的Field和name的键值对(因为主键是不能在用户定义的Model类中进行声明的)
+    Field idField = getIdField(type);
+    mColumnNames.put(idField, mIdName);
+
+    // 获取用户自定义Model中Field集合
+    List<Field> fields = new LinkedList<Field>(ReflectionUtils.getDeclaredColumnFields(type));
+    // Fields根据name进行字母升序排序
+    Collections.reverse(fields);
+
+    for (Field field : fields) {
+        if (field.isAnnotationPresent(Column.class)) {
+            final Column columnAnnotation = field.getAnnotation(Column.class);
+            String columnName = columnAnnotation.name();
+            if (TextUtils.isEmpty(columnName)) {
+                columnName = field.getName();
+            }
+
+            mColumnNames.put(field, columnName);
+        }
+    }
+
+}
+```
+从源码来看,TableInfo的构造函数就是通过注解来解析用户自定义Model的所有Field字段.
+其中涉及到的两个注解非常是Table和Column.通过Table注解获取表名和主键key,通过Column注解获取表的其它字段名.
+
+### Table.java
+Table注解的源码如下:
+```java
+@Target(ElementType.TYPE)
+@Retention(RetentionPolicy.RUNTIME)
+public @interface Table {
+
+	public static final String DEFAULT_ID_NAME = "Id";
+	public String name();
+	public String id() default DEFAULT_ID_NAME;
+}
+```
+从Table注解的源码来看,Table注解是作用在类或者接口上,生命周期是运行时.其中name是表名,id是主键名.
+
+### Column.java
+
+
 
 #### DatabaseHelper.java
 

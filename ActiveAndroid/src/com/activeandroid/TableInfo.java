@@ -16,19 +16,15 @@ import com.activeandroid.annotation.Table;
 import com.activeandroid.util.ReflectionUtils;
 
 public final class TableInfo {
-	//////////////////////////////////////////////////////////////////////////////////////
-	// PRIVATE MEMBERS
-	//////////////////////////////////////////////////////////////////////////////////////
-
     /**
-     * 当前用户自定义表的Class对象
+     * 当前用户自定义Model的Class对象
      */
-	private Class<? extends Model> mType;
+    private Class<? extends Model> mType;
 
     /**
      * 表名
      */
-	private String mTableName;
+    private String mTableName;
 
     /**
      * 表主键的名称,默认为"id"
@@ -38,25 +34,23 @@ public final class TableInfo {
     /**
      * 表的每一列和其名称的Map映射
      */
-	private Map<Field, String> mColumnNames = new LinkedHashMap<Field, String>();
+    private Map<Field, String> mColumnNames = new LinkedHashMap<Field, String>();
 
-	//////////////////////////////////////////////////////////////////////////////////////
-	// CONSTRUCTORS
-	//////////////////////////////////////////////////////////////////////////////////////
+    /**
+     * 构造函数,根据用户自定义的Model类生成TableInfo对象
+     */
+    public TableInfo(Class<? extends Model> type) {
+        mType = type;
 
-	public TableInfo(Class<? extends Model> type) {
-		mType = type;
-
-		final Table tableAnnotation = type.getAnnotation(Table.class);
+        final Table tableAnnotation = type.getAnnotation(Table.class);
 
         if (tableAnnotation != null) {
             // 如果有Table注解,则使用Table注解中的表名和主键名
-			mTableName = tableAnnotation.name();
-			mIdName = tableAnnotation.id();
-		}
-		else {
+            mTableName = tableAnnotation.name();
+            mIdName = tableAnnotation.id();
+        } else {
             // 没有Table注解,使用类名作为表名
-			mTableName = type.getSimpleName();
+            mTableName = type.getSimpleName();
         }
 
         // 添加主键的Field和name的键值对(因为主键是不能在用户定义的Model类中进行声明的)
@@ -80,31 +74,31 @@ public final class TableInfo {
             }
         }
 
-	}
+    }
 
-	//////////////////////////////////////////////////////////////////////////////////////
-	// PUBLIC METHODS
-	//////////////////////////////////////////////////////////////////////////////////////
+    //////////////////////////////////////////////////////////////////////////////////////
+    // PUBLIC METHODS
+    //////////////////////////////////////////////////////////////////////////////////////
 
-	public Class<? extends Model> getType() {
-		return mType;
-	}
+    public Class<? extends Model> getType() {
+        return mType;
+    }
 
-	public String getTableName() {
-		return mTableName;
-	}
+    public String getTableName() {
+        return mTableName;
+    }
 
-	public String getIdName() {
-		return mIdName;
-	}
+    public String getIdName() {
+        return mIdName;
+    }
 
-	public Collection<Field> getFields() {
-		return mColumnNames.keySet();
-	}
+    public Collection<Field> getFields() {
+        return mColumnNames.keySet();
+    }
 
-	public String getColumnName(Field field) {
-		return mColumnNames.get(field);
-	}
+    public String getColumnName(Field field) {
+        return mColumnNames.get(field);
+    }
 
     /**
      * 获取主键的Field,即mId成员代表的Field.
@@ -113,12 +107,10 @@ public final class TableInfo {
         if (type.equals(Model.class)) {
             try {
                 return type.getDeclaredField("mId");
-            }
-            catch (NoSuchFieldException e) {
+            } catch (NoSuchFieldException e) {
                 Log.e("Impossible!", e.toString());
             }
-        }
-        else if (type.getSuperclass() != null) {
+        } else if (type.getSuperclass() != null) {
             return getIdField(type.getSuperclass());
         }
 
