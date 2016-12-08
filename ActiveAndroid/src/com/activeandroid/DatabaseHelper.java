@@ -1,16 +1,5 @@
 package com.activeandroid;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.OutputStream;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-
 import android.content.Context;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
@@ -22,32 +11,30 @@ import com.activeandroid.util.NaturalOrderComparator;
 import com.activeandroid.util.SQLiteUtils;
 import com.activeandroid.util.SqlParser;
 
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+
 public final class DatabaseHelper extends SQLiteOpenHelper {
-    //////////////////////////////////////////////////////////////////////////////////////
-    // PUBLIC CONSTANTS
-    //////////////////////////////////////////////////////////////////////////////////////
-
     public final static String MIGRATION_PATH = "migrations";
-
-    //////////////////////////////////////////////////////////////////////////////////////
-    // PRIVATE FIELDS
-    //////////////////////////////////////////////////////////////////////////////////////
 
     private final String mSqlParser;
 
-    //////////////////////////////////////////////////////////////////////////////////////
-    // CONSTRUCTORS
-    //////////////////////////////////////////////////////////////////////////////////////
-
+    /**
+     * 构造函数,传入当前数据库名称和版本号,并判断是否进行数据库拷贝动作.
+     */
     public DatabaseHelper(Configuration configuration) {
         super(configuration.getContext(), configuration.getDatabaseName(), null, configuration.getDatabaseVersion());
         copyAttachedDatabase(configuration.getContext(), configuration.getDatabaseName());
         mSqlParser = configuration.getSqlParser();
     }
-
-    //////////////////////////////////////////////////////////////////////////////////////
-    // OVERRIDEN METHODS
-    //////////////////////////////////////////////////////////////////////////////////////
 
     @Override
     public void onOpen(SQLiteDatabase db) {
@@ -67,16 +54,12 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
         executePragmas(db);
         // 创建新表,因为建表语句是CRATE TABLE IF NOT EXIST,所以不用担心旧表被覆盖的问题
         executeCreate(db);
-        // 旧表的修改使用asset/migrations/*.sql去改变
+        // 旧表的修改使用asset/migrations/*.sql去修改
         executeMigrations(db, oldVersion, newVersion);
     }
 
-    //////////////////////////////////////////////////////////////////////////////////////
-    // PUBLIC METHODS
-    //////////////////////////////////////////////////////////////////////////////////////
-
     /**
-     * 拷贝应用assets目录下同名SQLite db文件到应用所在的/data/data/package/database目录下
+     * 拷贝应用assets目录下同名SQLite db文件到应用所在的/data/data/packagename/database目录下
      */
     public void copyAttachedDatabase(Context context, String databaseName) {
         final File dbPath = context.getDatabasePath(databaseName);
@@ -110,10 +93,6 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
         }
     }
 
-    //////////////////////////////////////////////////////////////////////////////////////
-    // PRIVATE METHODS
-    //////////////////////////////////////////////////////////////////////////////////////
-
     /**
      * 开启SQLite的外键支持
      */
@@ -144,7 +123,7 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
     }
 
     /**
-     * 生成数据库的所有表结构
+     * 生成SQLite数据库的所有表结构
      */
     private void executeCreate(SQLiteDatabase db) {
         db.beginTransaction();
