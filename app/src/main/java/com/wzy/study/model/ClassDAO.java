@@ -13,6 +13,6 @@ public class ClassDAO extends Model{
     @Column(name = "studentsNum")
     public String studentsNum;
 
-    @Column(name = "name")
+    @Column(name = "className")
     public String name;
 }

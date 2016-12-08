@@ -27,12 +27,10 @@ import com.activeandroid.annotation.Column;
 import com.activeandroid.annotation.Column.ConflictAction;
 import com.activeandroid.serializer.TypeSerializer;
 
-import java.lang.Long;
-import java.lang.String;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
-import java.util.Arrays;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -236,10 +234,14 @@ public final class SQLiteUtils {
         }
     }
 
+    /**
+     * 生成建表语句.通过解析Column注解来完成每一列的构建,然后拼接成完整的建表语句.
+     */
     public static String createTableDefinition(TableInfo tableInfo) {
         final ArrayList<String> definitions = new ArrayList<String>();
 
         for (Field field : tableInfo.getFields()) {
+            // 生成每一列的构建语句
             String definition = createColumnDefinition(tableInfo, field);
             if (!TextUtils.isEmpty(definition)) {
                 definitions.add(definition);
@@ -248,17 +250,23 @@ public final class SQLiteUtils {
 
         definitions.addAll(createUniqueDefinition(tableInfo));
 
+        // 拼接建表语句
         return String.format("CREATE TABLE IF NOT EXISTS %s (%s);", tableInfo.getTableName(),
                 TextUtils.join(", ", definitions));
     }
 
+    /**
+     * 创建每一列的构建语句
+     */
     @SuppressWarnings("unchecked")
     public static String createColumnDefinition(TableInfo tableInfo, Field field) {
         StringBuilder definition = new StringBuilder();
 
         Class<?> type = field.getType();
+        // 获取列名
         final String name = tableInfo.getColumnName(field);
         final TypeSerializer typeSerializer = Cache.getParserForType(field.getType());
+        // 获取列的注解
         final Column column = field.getAnnotation(Column.class);
 
         if (typeSerializer != null) {
@@ -266,14 +274,17 @@ public final class SQLiteUtils {
         }
 
         if (TYPE_MAP.containsKey(type)) {
+            // 将Java的Field类型转换为SQLite的基本类型(INTEGER, REAL, TEXT, BLOB)
             definition.append(name);
             definition.append(" ");
             definition.append(TYPE_MAP.get(type).toString());
         } else if (ReflectionUtils.isModel(type)) {
+            // 外键,使用Integer类型
             definition.append(name);
             definition.append(" ");
             definition.append(SQLiteType.INTEGER.toString());
         } else if (ReflectionUtils.isSubclassOf(type, Enum.class)) {
+            // 枚举类型
             definition.append(name);
             definition.append(" ");
             definition.append(SQLiteType.TEXT.toString());
@@ -301,6 +312,7 @@ public final class SQLiteUtils {
                 }
             }
 
+            // 构建外键
             if (FOREIGN_KEYS_SUPPORTED && ReflectionUtils.isModel(type)) {
                 definition.append(" REFERENCES ");
                 definition.append(Cache.getTableInfo((Class<? extends Model>) type).getTableName());

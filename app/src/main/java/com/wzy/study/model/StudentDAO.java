@@ -6,10 +6,10 @@ import com.activeandroid.annotation.Table;
 
 @Table(name = "Student")
 public class StudentDAO extends Model {
-    @Column(name = "name")
+    @Column(name = "name", index = true, notNull = true, onNullConflict = Column.ConflictAction.ROLLBACK)
     public String name;
 
-    @Column(name = "age")
+    @Column(name = "age", notNull = true)
     public int age;
 
     @Column(name = "sex")
@@ -17,4 +17,7 @@ public class StudentDAO extends Model {
 
     @Column(name = "score")
     public int score;
+
+    @Column(name = "cid", onDelete = Column.ForeignKeyAction.CASCADE, onUpdate = Column.ForeignKeyAction.CASCADE)
+    public ClassDAO classId;
 }

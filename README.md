@@ -4,9 +4,9 @@
 # 基本使用
 
 ## ActiveAndroid集成
-在AndroidStudio中，我们可以通过两种方式集成ActiveAndroid.
+在AndroidStudio中,我们可以通过两种方式集成ActiveAndroid.
 
-第一种是使用Gradle配置依赖：
+第一种是使用Gradle配置依赖:
 ```gradle
 repositories {
     mavenCentral()
@@ -43,7 +43,7 @@ public class StudentDAO extends Model {
 
 ## 在AndroidManifest.xml中注册相关信息
 
-为了ActiveAndroid的运行效率,使用者需要在AndroidManifest.xml中注册数据库名称、版本号、表的代码路径等相关信息,参考设置如下：
+为了ActiveAndroid的运行效率,使用者需要在AndroidManifest.xml中注册数据库名称、版本号、表的代码路径等相关信息,参考设置如下:
 ```xml
 <meta-data
     android:name="AA_DB_NAME"
@@ -110,7 +110,7 @@ public static void initialize(Configuration configuration, boolean loggingEnable
 ### Configuration.java
 
 Configuration是ActiveAndroid的配置类,用来记录用户设置的数据库名称,数据库版本,数据库表等相关信息.
-它采用构造者模式创建,我们只需要关注一下Configuration.Builder(context).create()的具体实现即可.源码如下：
+它采用构造者模式创建,我们只需要关注一下Configuration.Builder(context).create()的具体实现即可.源码如下:
 ```java
 /**
  * 构建Configuration类.
@@ -181,7 +181,7 @@ public static void initialize(Configuration configuration, boolean loggingEnable
 
 ### Cache.java
 
-Cache.initialize()的源码如下：
+Cache.initialize()的源码如下:
 ```java
 public static synchronized void initialize(Configuration configuration) {
     // 确保ActiveAndroid只初始化一次
@@ -212,7 +212,7 @@ public static synchronized void initialize(Configuration configuration) {
 
 ### ModelInfo.java
 
-中文注解的源码如下：
+中文注解的源码如下:
 ```java
 final class ModelInfo {
     /**
@@ -238,7 +238,7 @@ final class ModelInfo {
         // 首先解析AndroidManifest中对应的Model对象
         if (!loadModelFromMetaData(configuration)) {
             try {
-                // 如果用户在AndroidManifest没声明自定义的Model类，
+                // 如果用户在AndroidManifest没声明自定义的Model类,
                 // 则从apk安装目录中去扫描继承自Model的类
                 scanForModel(configuration.getContext());
             } catch (IOException e) {
@@ -260,7 +260,7 @@ final class ModelInfo {
             return false;
         }
 
-        // 解析每个Model对象，构造Model和TableInfo的键值对
+        // 解析每个Model对象,构造Model和TableInfo的键值对
         final List<Class<? extends Model>> models = configuration.getModelClasses();
         if (models != null) {
             for (Class<? extends Model> model : models) {
@@ -440,39 +440,136 @@ public @interface Table {
 从Table注解的源码来看,Table注解是作用在类或者接口上,生命周期是运行时.其中name是表名,id是主键名.
 
 ### Column.java
+Column是用来表示每一列字段的,因此成员属性会比较复杂,中文注释的源码如下:
+```java
+@Target(ElementType.FIELD)
+@Retention(RetentionPolicy.RUNTIME)
+public @interface Column {
+    /**
+     * 约束冲突的执行算法.
+     * ROLLBACK:当执行的SQL语句违反约束条件时,会停止当前执行的SQL语句,并将数据恢复到操作之前的状态.
+     * ABORT:当执行的SQL语句违反约束条件时,会停止当前执行的SQL语句,并将数据恢复到操作之前的状态,不过当前事务下先前执行的SQL语句造成的数据变动并不会受到影响.
+     * FAIL:当执行的SQL语句违反约束条件时,会停止当前执行的SQL语句,不过,先去执行的SQL语句造成的数据变化不会受到影响,而后面的SQL语句不会被执行.
+     * IGNORE:当执行的SQL语句违反约束条件时,那么这次数据将不会生效,但是后续的SQL语句会被继续执行.
+     * REPLACE:当插入或者修改数据时违反了唯一性的约束时,新的数据会替换掉旧的数据.
+     */
+    public enum ConflictAction {
+        ROLLBACK, ABORT, FAIL, IGNORE, REPLACE
+    }
 
+    /**
+     * 外键约束在ON DELETE和ON UPDATE的行为.
+     * SET NULL:父键被删除(ON DELTETE SET NULL)或者修改(ON UPDATE SET NULL)时将外键字段设置为NULL.
+     * SET_DEFAULT:父键被删除(ON DELETE SET DEFAULT)或者修改(ON UPDATE SET DEFAULT)时将外键字段设置为默认值.
+     * CASCADE:将实施在父键上的删除或者更新操作传递给关联的子键.
+     * RESTRICT:存在一个或者多个子键外键引用了相应的父键时,SQLite禁止删除(ON DELETE RESTRICT)或者更新(ON UPGRADE RESTRICT)父键.
+     * NO ACTION:如果没有明确指定行为,那么默认的行为就是NO ACTION.表示父键被修改或者删除时,没有特别的行为发生.
+     */
+    public enum ForeignKeyAction {
+        SET_NULL, SET_DEFAULT, CASCADE, RESTRICT, NO_ACTION
+    }
 
+    /**
+     * 列名称
+     */
+    public String name() default "";
 
-#### DatabaseHelper.java
+    /**
+     * 列长度
+     */
+    public int length() default -1;
 
-DatabaseHelper的中文注释源码如下：
+    /**
+     * 列是否非空
+     */
+    public boolean notNull() default false;
+
+    /**
+     * 约束冲突的执行算法,默认为FAIL
+     */
+    public ConflictAction onNullConflict() default ConflictAction.FAIL;
+
+    /**
+     * 外键约束,ON DELETE的默认处理是NO ACTION
+     */
+    public ForeignKeyAction onDelete() default ForeignKeyAction.NO_ACTION;
+
+    /**
+     * 外键约束,ON UPDATE的默认处理是NO ACTION
+     */
+    public ForeignKeyAction onUpdate() default ForeignKeyAction.NO_ACTION;
+
+    /**
+     * SQLite的UNIQUE约束
+     */
+    public boolean unique() default false;
+
+    public ConflictAction onUniqueConflict() default ConflictAction.FAIL;
+
+    /**
+     * SQLite多个列的UNIQUE约束
+     */
+    public String[] uniqueGroups() default {};
+
+    public ConflictAction[] onUniqueConflicts() default {};
+
+    /**
+     * 如果设置index=true,会创建单列索引.
+     * 例如:
+     *
+     * @Table(name = "table_name")
+     * public class Table extends Model {
+     * @Column(name = "member", index = true)
+     * public String member;
+     * }
+     * 构建索引语句: CREATE INDEX index_table_name_member on table_name(member)
+     */
+    public boolean index() default false;
+
+    /**
+     * 如果设置indexGroups = ["group_name"],会创建组合索引.
+     * 例如:
+     *
+     * @Table(name = "table_name")
+     * public class Table extends Model {
+     * @Column(name = "member1", indexGroups = {"group1"})
+     * public String member1;
+     * @Column(name = "member2", indexGroups = {"group1", "group2"})
+     * public String member2;
+     * @Column(name = "member3", indexGroups = {"group2"})
+     * public String member3;
+     * }
+     * 构建索引语句:
+     * CREATE INDEX index_table_name_group1 on table_name(member1, member2)
+     * CREATE INDEX index_table_name_group2 on table_name(member2, member3)
+     */
+    public String[] indexGroups() default {};
+}
+```
+
+### DatabaseHelper.java
+
+了解了ModelInfo的初始化过程,知道了Table注解和Column注解的实现,接下来,我们需要看一下DatabaseHelper的源码实现了.
+需要明确,我们看源码是要带着问题去看源码,这里我抛出两个问题:
+
+1. DatabaseHelper是如何解析Table和Column注解,生成建表语句的.
+2. DatabaseHelper是如何执行数据库升级的.
+
+大家带着问题,来学习一下中文注解的DatabaseHelper源码:
 ```java
 public final class DatabaseHelper extends SQLiteOpenHelper {
-    //////////////////////////////////////////////////////////////////////////////////////
-    // PUBLIC CONSTANTS
-    //////////////////////////////////////////////////////////////////////////////////////
-
     public final static String MIGRATION_PATH = "migrations";
-
-    //////////////////////////////////////////////////////////////////////////////////////
-    // PRIVATE FIELDS
-    //////////////////////////////////////////////////////////////////////////////////////
 
     private final String mSqlParser;
 
-    //////////////////////////////////////////////////////////////////////////////////////
-    // CONSTRUCTORS
-    //////////////////////////////////////////////////////////////////////////////////////
-
+    /**
+     * 构造函数,传入当前数据库名称和版本号,并判断是否进行数据库拷贝动作.
+     */
     public DatabaseHelper(Configuration configuration) {
         super(configuration.getContext(), configuration.getDatabaseName(), null, configuration.getDatabaseVersion());
         copyAttachedDatabase(configuration.getContext(), configuration.getDatabaseName());
         mSqlParser = configuration.getSqlParser();
     }
-
-    //////////////////////////////////////////////////////////////////////////////////////
-    // OVERRIDEN METHODS
-    //////////////////////////////////////////////////////////////////////////////////////
 
     @Override
     public void onOpen(SQLiteDatabase db) {
@@ -492,16 +589,12 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
         executePragmas(db);
         // 创建新表,因为建表语句是CRATE TABLE IF NOT EXIST,所以不用担心旧表被覆盖的问题
         executeCreate(db);
-        // 旧表的修改使用asset/migrations/*.sql去改变
+        // 旧表的修改使用asset/migrations/*.sql去修改
         executeMigrations(db, oldVersion, newVersion);
     }
 
-    //////////////////////////////////////////////////////////////////////////////////////
-    // PUBLIC METHODS
-    //////////////////////////////////////////////////////////////////////////////////////
-
     /**
-     * 拷贝应用assets目录下同名SQLite db文件到应用所在的/data/data/package/database目录下
+     * 拷贝应用assets目录下同名SQLite db文件到应用所在的/data/data/packagename/database目录下
      */
     public void copyAttachedDatabase(Context context, String databaseName) {
         final File dbPath = context.getDatabasePath(databaseName);
@@ -535,10 +628,6 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
         }
     }
 
-    //////////////////////////////////////////////////////////////////////////////////////
-    // PRIVATE METHODS
-    //////////////////////////////////////////////////////////////////////////////////////
-
     /**
      * 开启SQLite的外键支持
      */
@@ -569,7 +658,7 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
     }
 
     /**
-     * 生成数据库的所有表结构
+     * 生成SQLite数据库的所有表结构
      */
     private void executeCreate(SQLiteDatabase db) {
         db.beginTransaction();
@@ -684,16 +773,218 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
 }
 ```
 
-回顾Cache类的initialize方法:
+通过源码,我们来解答开始提出的两个问题.
+
+### 创建SQLite数据库表结构
+
+我们知道,当执行getWritableDatabase操作时会触发到DatabaseHelper类的onCreate操作.在onCreate方法中,我们可以观察到executeCreate是真正用户表创建的地方.
+而建表语句是通过```java SQLiteUtils.createTableDefinition(tableInfo) ```实现的.这部分源码实现如下:
 ```java
-sDatabaseHelper = new DatabaseHelper(configuration);
-openDatabase();
+/**
+ * 生成建表语句.通过解析Column注解来完成每一列的构建,然后拼接成完整的建表语句.
+ */
+public static String createTableDefinition(TableInfo tableInfo) {
+    final ArrayList<String> definitions = new ArrayList<String>();
+
+    for (Field field : tableInfo.getFields()) {
+        // 生成每一列的构建语句
+        String definition = createColumnDefinition(tableInfo, field);
+        if (!TextUtils.isEmpty(definition)) {
+            definitions.add(definition);
+        }
+    }
+
+    definitions.addAll(createUniqueDefinition(tableInfo));
+
+    // 拼接建表语句
+    return String.format("CREATE TABLE IF NOT EXISTS %s (%s);", tableInfo.getTableName(),
+            TextUtils.join(", ", definitions));
+}
+
+/**
+ * 创建每一列的构建语句
+ */
+@SuppressWarnings("unchecked")
+public static String createColumnDefinition(TableInfo tableInfo, Field field) {
+    StringBuilder definition = new StringBuilder();
+
+    Class<?> type = field.getType();
+    // 获取列名
+    final String name = tableInfo.getColumnName(field);
+    final TypeSerializer typeSerializer = Cache.getParserForType(field.getType());
+    // 获取列的注解
+    final Column column = field.getAnnotation(Column.class);
+
+    if (typeSerializer != null) {
+        type = typeSerializer.getSerializedType();
+    }
+
+    if (TYPE_MAP.containsKey(type)) {
+        // 将Java的Field类型转换为SQLite的基本类型(INTEGER, REAL, TEXT, BLOB)
+        definition.append(name);
+        definition.append(" ");
+        definition.append(TYPE_MAP.get(type).toString());
+    } else if (ReflectionUtils.isModel(type)) {
+        // 外键,使用Integer类型
+        definition.append(name);
+        definition.append(" ");
+        definition.append(SQLiteType.INTEGER.toString());
+    } else if (ReflectionUtils.isSubclassOf(type, Enum.class)) {
+        // 枚举类型
+        definition.append(name);
+        definition.append(" ");
+        definition.append(SQLiteType.TEXT.toString());
+    }
+
+    if (!TextUtils.isEmpty(definition)) {
+
+        if (name.equals(tableInfo.getIdName())) {
+            definition.append(" PRIMARY KEY AUTOINCREMENT");
+        } else if (column != null) {
+            if (column.length() > -1) {
+                definition.append("(");
+                definition.append(column.length());
+                definition.append(")");
+            }
+
+            if (column.notNull()) {
+                definition.append(" NOT NULL ON CONFLICT ");
+                definition.append(column.onNullConflict().toString());
+            }
+
+            if (column.unique()) {
+                definition.append(" UNIQUE ON CONFLICT ");
+                definition.append(column.onUniqueConflict().toString());
+            }
+        }
+
+        // 构建外键
+        if (FOREIGN_KEYS_SUPPORTED && ReflectionUtils.isModel(type)) {
+            definition.append(" REFERENCES ");
+            definition.append(Cache.getTableInfo((Class<? extends Model>) type).getTableName());
+            definition.append("(" + tableInfo.getIdName() + ")");
+            definition.append(" ON DELETE ");
+            definition.append(column.onDelete().toString().replace("_", " "));
+            definition.append(" ON UPDATE ");
+            definition.append(column.onUpdate().toString().replace("_", " "));
+        }
+    } else {
+        Log.e("No type mapping for: " + type.toString());
+    }
+
+    return definition.toString();
+}
 ```
+ActiveAndroid的精髓就是将Java类转换为对应的SQL语句,大家有兴趣的可以单步跟一下建表语句的执行.
 
-其中：
+### 升级数据库表结构
+数据库的升级需要参考onUpgrade函数的实现:
+```java
+@Override
+public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
+    executePragmas(db);
+    // 创建新表,因为建表语句是CRATE TABLE IF NOT EXIST,所以不用担心旧表被覆盖的问题
+    executeCreate(db);
+    // 旧表的修改使用asset/migrations/*.sql去修改
+    executeMigrations(db, oldVersion, newVersion);
+}
+```
+通过源码我们可以分析出:
 
-1. DatabaseHelper的构造函数会帮助我们设置当前数据库的名称和版本号,同时如果asset目录下存在同名db文件且当前应用还没创建过该db文件,会帮助我们做一个迁移操作.
-2. openDatabase()方法会帮助回调到DatabaseHelper类的onCreate方法创建所有的表结构,如果涉及到数据库升级,还会帮助我们回调onUpgarde方法.
+1. 支持添加新表操作,因为数据库版本升级时会再次执行executeCreate()方法.
+2. 支持对原有表结构的修改,参考实现executeMigrations函数.
+
+executeMigrations的函数实现如下:
+```java
+/**
+ * 实现SQLite数据库版本升级
+ *
+ * @param db         SQLite数据库句柄
+ * @param oldVersion 旧版本号
+ * @param newVersion 新版本号
+ */
+private boolean executeMigrations(SQLiteDatabase db, int oldVersion, int newVersion) {
+    boolean migrationExecuted = false;
+    try {
+        // 获取应用assets/migrations目录下的.sql文件,文件名为数据库新版本号
+        final List<String> files = Arrays.asList(Cache.getContext().getAssets().list(MIGRATION_PATH));
+        Collections.sort(files, new NaturalOrderComparator());
+
+        db.beginTransaction();
+        try {
+            for (String file : files) {
+                try {
+                    final int version = Integer.valueOf(file.replace(".sql", ""));
+
+                    if (version > oldVersion && version <= newVersion) {
+                        // 执行更新的SQL语句
+                        executeSqlScript(db, file);
+                        migrationExecuted = true;
+
+                        Log.i(file + " executed successfully.");
+                    }
+                } catch (NumberFormatException e) {
+                    Log.w("Skipping invalidly named file: " + file, e);
+                }
+            }
+            db.setTransactionSuccessful();
+        } finally {
+            db.endTransaction();
+        }
+    } catch (IOException e) {
+        Log.e("Failed to execute migrations.", e);
+    }
+
+    return migrationExecuted;
+}
+
+/**
+ * 执行指定文件中的SQL语句
+ */
+private void executeSqlScript(SQLiteDatabase db, String file) {
+
+    InputStream stream = null;
+
+    try {
+        stream = Cache.getContext().getAssets().open(MIGRATION_PATH + "/" + file);
+
+        if (Configuration.SQL_PARSER_DELIMITED.equalsIgnoreCase(mSqlParser)) {
+            executeDelimitedSqlScript(db, stream);
+        } else {
+            executeLegacySqlScript(db, stream);
+        }
+
+    } catch (IOException e) {
+        Log.e("Failed to execute " + file, e);
+    } finally {
+        IOUtils.closeQuietly(stream);
+    }
+}
+
+private void executeLegacySqlScript(SQLiteDatabase db, InputStream stream) throws IOException {
+
+    InputStreamReader reader = null;
+    BufferedReader buffer = null;
+
+    try {
+        reader = new InputStreamReader(stream);
+        buffer = new BufferedReader(reader);
+        String line = null;
+
+        while ((line = buffer.readLine()) != null) {
+            line = line.replace(";", "").trim();
+            if (!TextUtils.isEmpty(line)) {
+                db.execSQL(line);
+            }
+        }
+
+    } finally {
+        IOUtils.closeQuietly(buffer);
+        IOUtils.closeQuietly(reader);
+
+    }
+}
+```
 
 ------
 
@@ -706,7 +997,7 @@ openDatabase();
 
 ### Sqlable.java
 
-在ActiveAndroid中,数据库操作的类都被放在query包中,里面的类都继承了Sqlable接口,这个接口里面只有一个函数,它的功能就是将类转化为各种SQL语句：
+在ActiveAndroid中,数据库操作的类都被放在query包中,里面的类都继承了Sqlable接口,这个接口里面只有一个函数,它的功能就是将类转化为各种SQL语句:
 ```java
 public interface Sqlable {
 	public String toSql();
@@ -822,7 +1113,7 @@ public final Long save() {
 
 ActiveAndroid中,可以通过两种方法进行删除操作.
 
-第一种是调用Model.delete方法,这种调用比较简单,我们直接上源码：
+第一种是调用Model.delete方法,这种调用比较简单,我们直接上源码:
 ```java
 public final void delete() {
     Cache.openDatabase().delete(mTableInfo.getTableName(), idName + "=?", new String[]{getId().toString()});
@@ -834,7 +1125,7 @@ public final void delete() {
 ```
 从代码看,就是直接调用了db.delete方法,删除的条件是依赖于主键的值.
 
-第二种是使用Delete对象,我们先看一下示例代码：
+第二种是使用Delete对象,我们先看一下示例代码:
 ```java
 public void onDelete(View view) {
     new Delete().from(StudentDAO.class).where("age = ?", new String[] {"1"}).execute();
@@ -843,13 +1134,13 @@ public void onDelete(View view) {
 
 从代码里也能隐约看出SQL拼接的影子,我们从源码来跟踪一下其具体实现.
 
-注意：不要Delete配合executeSingle使用,有两个坑需要注意：
+注意:不要Delete配合executeSingle使用,有两个坑需要注意:
 1. SQLite默认不支持DELETE和LIMIT并存的操作.
-2. 使用Delete和executeSingle配合,其实是先执行SELETE操作,然后再执行Model的delte操作.但是ActiveAndroid源码中没有判空,会导致空指针.我已经提交PR解决该问题：https://github.com/pardom/ActiveAndroid/pull/510
+2. 使用Delete和executeSingle配合,其实是先执行SELETE操作,然后再执行Model的delte操作.但是ActiveAndroid源码中没有判空,会导致空指针.我已经提交PR解决该问题:https://github.com/pardom/ActiveAndroid/pull/510
 
 #### Delete.java
 
-我们先看一下Delete.java的源码实现：
+我们先看一下Delete.java的源码实现:
 ```java
 public final class Delete implements Sqlable {
 	public Delete() {
@@ -871,7 +1162,7 @@ public final class Delete implements Sqlable {
 
 #### From.java
 
-From的注释源码如下：
+From的注释源码如下:
 ```java
 public final class From implements Sqlable {
     /**
@@ -1319,7 +1610,7 @@ From类其实是对SQL语句的拼接具体实现,那SQL语句的具体执行其
 
 #### SQLiteUtils.java
 
-在SQLiteUtils.java中,执行SQL语句的方法非常简单：
+在SQLiteUtils.java中,执行SQL语句的方法非常简单:
 ```java
 public static void execSql(String sql) {
     Cache.openDatabase().execSQL(sql);
@@ -1335,7 +1626,7 @@ public static void execSql(String sql, Object[] bindArgs) {
 ### 查找数据
 
 查找数据的过程其实和删除数据的过程很类似,都是通过From类去拼接SQL,最后通过SQLiteUtils去执行.
-我们首先看一下ActiveAndroid中如何查询数据：
+我们首先看一下ActiveAndroid中如何查询数据:
 ```java
 public void onSelect(View view) {
     List<StudentDAO> list = new Select().from(StudentDAO.class).execute();
@@ -1476,7 +1767,7 @@ public static <T extends Model> List<T> rawQuery(Class<? extends Model> type, St
     return entities;
 }
 ```
-从源码中,可以看到,获取cursor的过程都是通过SQLiteDatabase的rawQuery方法,处理Cursor的方法如下：
+从源码中,可以看到,获取cursor的过程都是通过SQLiteDatabase的rawQuery方法,处理Cursor的方法如下:
 ```java
 @SuppressWarnings("unchecked")
 public static <T extends Model> List<T> processCursor(Class<? extends Model> type, Cursor cursor) {

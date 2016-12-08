@@ -1,5 +1,12 @@
 package com.activeandroid;
 
+import android.text.TextUtils;
+import android.util.Log;
+
+import com.activeandroid.annotation.Column;
+import com.activeandroid.annotation.Table;
+import com.activeandroid.util.ReflectionUtils;
+
 import java.lang.reflect.Field;
 import java.util.Collection;
 import java.util.Collections;
@@ -7,13 +14,6 @@ import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-
-import android.text.TextUtils;
-import android.util.Log;
-
-import com.activeandroid.annotation.Column;
-import com.activeandroid.annotation.Table;
-import com.activeandroid.util.ReflectionUtils;
 
 public final class TableInfo {
     /**

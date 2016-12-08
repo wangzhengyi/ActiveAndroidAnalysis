@@ -1,6 +1,16 @@
 package com.activeandroid;
 
 
+import android.content.Context;
+
+import com.activeandroid.serializer.CalendarSerializer;
+import com.activeandroid.serializer.FileSerializer;
+import com.activeandroid.serializer.SqlDateSerializer;
+import com.activeandroid.serializer.TypeSerializer;
+import com.activeandroid.serializer.UtilDateSerializer;
+import com.activeandroid.util.Log;
+import com.activeandroid.util.ReflectionUtils;
+
 import java.io.File;
 import java.io.IOException;
 import java.net.URL;
@@ -11,16 +21,6 @@ import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import android.content.Context;
-
-import com.activeandroid.serializer.CalendarSerializer;
-import com.activeandroid.serializer.SqlDateSerializer;
-import com.activeandroid.serializer.TypeSerializer;
-import com.activeandroid.serializer.UtilDateSerializer;
-import com.activeandroid.serializer.FileSerializer;
-import com.activeandroid.util.Log;
-import com.activeandroid.util.ReflectionUtils;
 
 import dalvik.system.DexFile;
 

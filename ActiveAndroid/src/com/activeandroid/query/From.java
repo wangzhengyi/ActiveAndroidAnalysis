@@ -9,7 +9,6 @@ import com.activeandroid.content.ContentProvider;
 import com.activeandroid.query.Join.JoinType;
 import com.activeandroid.util.Log;
 import com.activeandroid.util.SQLiteUtils;
-import com.sun.org.apache.xpath.internal.operations.Mod;
 
 import java.util.ArrayList;
 import java.util.List;
