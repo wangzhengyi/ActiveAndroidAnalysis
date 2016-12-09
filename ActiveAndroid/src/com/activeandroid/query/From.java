@@ -76,8 +76,6 @@ public final class From implements Sqlable {
         mType = table;
         mJoins = new ArrayList<Join>();
         mQueryBase = queryBase;
-
-        mJoins = new ArrayList<Join>();
         mArguments = new ArrayList<Object>();
     }
 
@@ -411,6 +409,9 @@ public final class From implements Sqlable {
         }
     }
 
+    /**
+     * 指定带LIMIT 1的SQL语句
+     */
     public <T extends Model> T executeSingle() {
         if (mQueryBase instanceof Select) {
             limit(1);

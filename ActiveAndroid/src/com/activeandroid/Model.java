@@ -48,10 +48,11 @@ public abstract class Model {
 
     private final TableInfo mTableInfo;
     private final String idName;
-    //////////////////////////////////////////////////////////////////////////////////////
-    // CONSTRUCTORS
-    //////////////////////////////////////////////////////////////////////////////////////
 
+    /**
+     * 构造函数
+     * 获取当前自定义Model对应的TableInfo,并获取主键的名称
+     */
     public Model() {
         mTableInfo = Cache.getTableInfo(getClass());
         idName = mTableInfo.getIdName();
@@ -73,11 +74,16 @@ public abstract class Model {
                 .notifyChange(ContentProvider.createUri(mTableInfo.getType(), mId), null);
     }
 
+    /**
+     * 插入或更新操作
+     */
     public final Long save() {
         // 获取SQLite数据库写权限句柄
         final SQLiteDatabase db = Cache.openDatabase();
+        // 创建ContentValues插入对象
         final ContentValues values = new ContentValues();
 
+        // 遍历每一列
         for (Field field : mTableInfo.getFields()) {
             final String fieldName = mTableInfo.getColumnName(field);
             Class<?> fieldType = field.getType();

@@ -993,11 +993,13 @@ private void executeLegacySqlScript(SQLiteDatabase db, InputStream stream) throw
 至此,ActiveAndroid的数据库创建过程就已经分析完成了.
 
 --------
-## 数据库SURD
+## 数据库增删改查
+
+在ActiveAndroid中,数据库的操作类都放在query包中,里面的类都继承了Sqlable接口,所以我们需要先看一下Sqlable接口的实现.
 
 ### Sqlable.java
 
-在ActiveAndroid中,数据库操作的类都被放在query包中,里面的类都继承了Sqlable接口,这个接口里面只有一个函数,它的功能就是将类转化为各种SQL语句:
+Sqlable这个接口里面只有一个函数,它的功能就是将类转化为各种SQL语句:
 ```java
 public interface Sqlable {
 	public String toSql();
@@ -1008,13 +1010,15 @@ public interface Sqlable {
 
 ActiveAndroid中,插入操作和更新操作都是通过Model类的save方法实现的.这里以插入操作为例,对源码进行讲解.
 
-我们先来看一下ActiveAndroid是如何插入数据的,例如我们插入一条学生数据:
+我们先来看一下ActiveAndroid是如何插入数据的,例如我们插入一条学生数据,实现代码如下:
+
 ```java
 public void onInsert(View view) {
     StudentDAO studentDAO = new StudentDAO();
-    studentDAO.age = sAge ++;
-    studentDAO.name = "name" + (num ++);
-    studentDAO.score = sScore;
+    studentDAO.age = 1;
+    studentDAO.name = "name1";
+    studentDAO.score = 100;
+    studentDAO.sex = "man";
     studentDAO.save();
 }
 ```
@@ -1134,11 +1138,12 @@ public void onDelete(View view) {
 
 从代码里也能隐约看出SQL拼接的影子,我们从源码来跟踪一下其具体实现.
 
-注意:不要Delete配合executeSingle使用,有两个坑需要注意:
-1. SQLite默认不支持DELETE和LIMIT并存的操作.
+注意:不要将Delete配合executeSingle使用,因为这样使用不可避免的会碰到两个坑:
+
+1. SQLite默认不支持DELETE和LIMIT并存的操作.而executeSingle会使用Limt 1语句.
 2. 使用Delete和executeSingle配合,其实是先执行SELETE操作,然后再执行Model的delte操作.但是ActiveAndroid源码中没有判空,会导致空指针.我已经提交PR解决该问题:https://github.com/pardom/ActiveAndroid/pull/510
 
-#### Delete.java
+### Delete.java
 
 我们先看一下Delete.java的源码实现:
 ```java
@@ -1156,13 +1161,11 @@ public final class Delete implements Sqlable {
 	}
 }
 ```
-继承自Sqlable,重写了toSql()方法,返回的是"DELETE ".
+Delete类继承自Sqlable,重写了toSql()方法,返回的是"DELETE ".同时,在它的from方法中,构造From类,并将自己传递给From.
+我们继续跟踪一下From类的具体实现.
 
-继续看一下From类的实现.
-
-#### From.java
-
-From的注释源码如下:
+### From.java
+From是ORM转换的核心实现,且这个类中包含了最后的数据动作execute和executeSingle,我们从源码来分析一下From类的具体实现:
 ```java
 public final class From implements Sqlable {
     /**
@@ -1608,7 +1611,7 @@ public final class From implements Sqlable {
 ```
 From类其实是对SQL语句的拼接具体实现,那SQL语句的具体执行其实是通过SQLiteUtils来执行的.
 
-#### SQLiteUtils.java
+### SQLiteUtils.java
 
 在SQLiteUtils.java中,执行SQL语句的方法非常简单:
 ```java
@@ -1636,7 +1639,7 @@ public void onSelect(View view) {
 }
 ```
 
-#### Select.java
+### Select.java
 
 ```java
 public final class Select implements Sqlable {
@@ -1722,7 +1725,7 @@ public final class Select implements Sqlable {
 
 可以看到,在Selete类中,我们可以指定需要查找的列,并声明是否为DISTINCT.
 
-#### SQLiteUtils.java
+### SQLiteUtils.java
 
 接下来,直接讲解一下SELETE的具体实现.
 首先,分析一下From类中SELETE真正执行的代码:
