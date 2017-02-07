@@ -51,6 +51,7 @@ public final class DatabaseHelper extends SQLiteOpenHelper {
 
     @Override
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
+        android.util.Log.w("wangzhengyi", "onUpgrade: is called");
         executePragmas(db);
         // 创建新表,因为建表语句是CRATE TABLE IF NOT EXIST,所以不用担心旧表被覆盖的问题
         executeCreate(db);
